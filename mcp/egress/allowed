@@ -1,0 +1,19 @@
+# Providers used by Trelune. One extended regular expression per line, matched against the host.
+# AWS: your media bucket (virtual-hosted or path style) and EventBridge Scheduler, in any region.
+# To lock it to one bucket, replace the first line with e.g. ^my-bucket\.s3\.us-east-1\.amazonaws\.com$
+^[a-z0-9][a-z0-9.-]*\.s3\.[a-z0-9-]+\.amazonaws\.com$
+^s3\.[a-z0-9-]+\.amazonaws\.com$
+^scheduler\.[a-z0-9-]+\.amazonaws\.com$
+# Google / YouTube
+^(www|oauth2|youtube|youtubeanalytics)\.googleapis\.com$
+# Meta: Facebook, Instagram (Graph API), uploads, Threads
+^graph\.facebook\.com$
+^rupload\.facebook\.com$
+^graph\.instagram\.com$
+^graph\.threads\.net$
+# TikTok
+^open\.tiktokapis\.com$
+^open-upload\.tiktokapis\.com$
+# X
+^api\.x\.com$
+^upload\.x\.com$

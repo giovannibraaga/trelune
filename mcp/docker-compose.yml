@@ -1,0 +1,44 @@
+# Trelune MCP, always on (restart: unless-stopped; Colima starts at login via `brew services`).
+# The MCP container sits on an internal network without internet; it only reaches the egress proxy,
+# which allows the providers' API hosts listed in egress/allowed.
+name: trelune
+services:
+  mcp:
+    build: ./server
+    container_name: trelune-mcp
+    restart: unless-stopped
+    environment:
+      HTTPS_PROXY: http://egress:8888
+      HTTP_PROXY: http://egress:8888
+      NO_PROXY: ""
+      HOST_HOME: ${HOME}
+    volumes:
+      # App data (publications, assistant permissions, workspace settings, MCP cloud key).
+      - ${TRELUNE_DATA_DIR:-${HOME}/Library/Application Support/Trelune}:/data
+      # Media folders, read-only and at the same path as on the Mac so post file paths resolve.
+      # Add your own (for example a project folder) in a docker-compose.override.yml.
+      - ${HOME}/Desktop:${HOME}/Desktop:ro
+      - ${HOME}/Downloads:${HOME}/Downloads:ro
+      - ${HOME}/Movies:${HOME}/Movies:ro
+      - ${HOME}/Pictures:${HOME}/Pictures:ro
+    networks: [internal]
+    depends_on: [egress]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+  egress:
+    build: ./egress
+    container_name: trelune-egress
+    restart: unless-stopped
+    networks: [internal, outside]
+    read_only: true
+    tmpfs: [/tmp, /run/tinyproxy, /var/log/tinyproxy]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 64m
+networks:
+  internal:
+    internal: true
+  outside: {}

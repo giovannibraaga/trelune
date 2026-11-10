@@ -1,0 +1,12 @@
+.build/
+.swiftpm/
+.DS_Store
+dist/
+.env
+.env.*
+!.env.example
+
+# Local, never published: personal notes, overrides and secrets
+.private/
+mcp/docker-compose.override.yml
+mcp/.env
