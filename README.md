@@ -42,7 +42,15 @@ Criar conteúdo já envolve decisões suficientes. O Trelune reúne calendário,
 
 ## Comece aqui
 
-O Trelune está em desenvolvimento e **ainda não tem uma release pronta**. Por enquanto, execute a partir do código-fonte.
+### Instalar
+
+1. Baixe o `Trelune-<versão>.dmg` em [Releases](https://github.com/giovannibraaga/trelune/releases/latest). Funciona em Macs com Apple silicon e Intel, com macOS 14 Sonoma ou posterior.
+2. Abra o DMG e arraste o **Trelune** para **Aplicativos**.
+3. Na primeira abertura, o macOS avisa que não pode verificar o desenvolvedor, porque esta versão ainda não é notarizada pela Apple. Abra o app uma vez, clique em **OK**, vá em **Ajustes do Sistema → Privacidade e Segurança** e clique em **Abrir Mesmo Assim** ao lado de “Trelune”. Das próximas vezes ele abre normalmente. Pelo Terminal: `xattr -dr com.apple.quarantine /Applications/Trelune.app`.
+
+O arquivo `.sha256` publicado junto permite conferir o download: `shasum -a 256 Trelune-<versão>.dmg`.
+
+### Compilar a partir do código
 
 **Você vai precisar de:**
 
@@ -103,6 +111,14 @@ O projeto não inclui serviço hospedado ou plano de assinatura oferecido pelo m
 swift build
 swift test
 ```
+
+Para gerar um instalador:
+
+```bash
+VERSION=1.0.0 ./script/release.sh
+```
+
+O script cria `dist/release/Trelune-<versão>.dmg` com o app universal (Apple silicon + Intel). Com um certificado **Developer ID Application** no Chaves, assina com hardened runtime; com `NOTARY_PROFILE` (perfil de `xcrun notarytool store-credentials`) também notariza o DMG, e o aviso da primeira abertura deixa de existir.
 
 O código do app fica em `Sources/Trelune/`, os testes em `Tests/` e os scripts em `script/`. Issues e pull requests são bem-vindos: ao relatar um problema, inclua a versão do macOS, os passos para reproduzir e as redes envolvidas, sem credenciais ou dados privados.
 
