@@ -75,5 +75,5 @@ if [ -n "$IDENTITY" ] && [ -n "${NOTARY_PROFILE:-}" ]; then
   xcrun stapler staple "$DMG"
 fi
 
-shasum -a 256 "$DMG" | tee "$DMG.sha256"
+(cd "$OUT" && shasum -a 256 "$(basename "$DMG")" | tee "$(basename "$DMG").sha256")
 echo "Pronto: $DMG"
