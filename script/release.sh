@@ -62,11 +62,8 @@ else
 fi
 codesign --verify --strict "$APP"
 
-echo "→ Gerando DMG"
-staging="$(mktemp -d)"
-cp -R "$APP" "$staging/"
-ln -s /Applications "$staging/Applications"
-hdiutil create -volname "Trelune $VERSION" -srcfolder "$staging" -ov -format UDZO "$DMG" >/dev/null
+echo "→ Gerando DMG (layout do Figma)"
+script/dmg/make-dmg.sh "$APP" "$DMG" >/dev/null
 [ -n "$IDENTITY" ] && codesign --force --timestamp --sign "$IDENTITY" "$DMG"
 
 if [ -n "$IDENTITY" ] && [ -n "${NOTARY_PROFILE:-}" ]; then
