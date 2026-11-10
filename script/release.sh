@@ -1,6 +1,6 @@
 #!/bin/bash
-# Builds a distributable Trelune for macOS: universal app (Apple silicon + Intel) in a DMG.
-#   VERSION=1.0.0 ./script/release.sh            -> dist/release/Trelune-1.0.0.dmg
+# Builds a distributable Trelune for macOS: universal app (Apple silicon + Intel) as a DMG and a .pkg installer.
+#   VERSION=1.0.0 ./script/release.sh            -> dist/release/Trelune-1.0.0.dmg and Trelune-1.0.0.pkg
 # Signing:
 #   - With a "Developer ID Application" certificate (or DEVELOPER_ID="Developer ID Application: …"), the app is
 #     signed with the hardened runtime. If NOTARY_PROFILE names a `xcrun notarytool store-credentials` profile,
@@ -75,8 +75,40 @@ if [ -n "$IDENTITY" ] && [ -n "${NOTARY_PROFILE:-}" ]; then
   xcrun stapler staple "$DMG"
 fi
 
+echo "→ Gerando instalador .pkg"
+PKG="$OUT/Trelune-$VERSION.pkg"
+pkgroot="$(mktemp -d)"; mkdir -p "$pkgroot/Applications"; cp -R "$APP" "$pkgroot/Applications/"
+components="$(mktemp -d)/components.plist"
+pkgbuild --analyze --root "$pkgroot" "$components" >/dev/null
+# Always install to /Applications, even when another copy with the same bundle id exists elsewhere.
+plutil -replace 0.BundleIsRelocatable -bool NO "$components"
+pkgbuild --root "$pkgroot" --component-plist "$components" --install-location / --identifier "$BUNDLE_ID.pkg" --version "$VERSION" "$OUT/Trelune-component.pkg" >/dev/null
+resources="$(mktemp -d)"; cp script/pkg/welcome.html script/pkg/conclusion.html "$resources/"; cp LICENSE "$resources/license.txt"
+cat > "$resources/distribution.xml" <<XML
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+  <title>Trelune $VERSION</title>
+  <welcome file="welcome.html" mime-type="text/html"/>
+  <license file="license.txt" mime-type="text/plain"/>
+  <conclusion file="conclusion.html" mime-type="text/html"/>
+  <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+  <domains enable_localSystem="true"/>
+  <volume-check><allowed-os-versions><os-version min="14.0"/></allowed-os-versions></volume-check>
+  <choices-outline><line choice="default"><line choice="$BUNDLE_ID.pkg"/></line></choices-outline>
+  <choice id="default"/>
+  <choice id="$BUNDLE_ID.pkg" visible="false"><pkg-ref id="$BUNDLE_ID.pkg"/></choice>
+  <pkg-ref id="$BUNDLE_ID.pkg" version="$VERSION" onConclusion="none">Trelune-component.pkg</pkg-ref>
+</installer-gui-script>
+XML
+INSTALLER_ID="$(security find-identity -v | awk -F'"' '/Developer ID Installer/ { print $2; exit }')"
+productbuild --distribution "$resources/distribution.xml" --resources "$resources" --package-path "$OUT" ${INSTALLER_ID:+--sign "$INSTALLER_ID"} "$PKG" >/dev/null
+rm -f "$OUT/Trelune-component.pkg"
+if [ -n "$INSTALLER_ID" ] && [ -n "${NOTARY_PROFILE:-}" ]; then xcrun notarytool submit "$PKG" --keychain-profile "$NOTARY_PROFILE" --wait; xcrun stapler staple "$PKG"; fi
+
 (cd "$OUT" && shasum -a 256 "$(basename "$DMG")" | tee "$(basename "$DMG").sha256")
+(cd "$OUT" && shasum -a 256 "$(basename "$PKG")" | tee "$(basename "$PKG").sha256")
+cp "$PKG" "$OUT/Trelune.pkg"
 # Stable names for https://github.com/<owner>/trelune/releases/latest/download/Trelune.dmg and install.sh.
 cp "$DMG" "$OUT/Trelune.dmg"
 (cd "$OUT" && shasum -a 256 Trelune.dmg > Trelune.dmg.sha256)
-echo "Pronto: $DMG (e $OUT/Trelune.dmg para o link fixo)"
+echo "Pronto: $DMG e $PKG (cópias Trelune.dmg / Trelune.pkg para o link fixo)"

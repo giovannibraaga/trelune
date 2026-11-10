@@ -17,8 +17,9 @@ cleanup() { hdiutil detach "$mountpoint" -quiet >/dev/null 2>&1 || true; rm -rf 
 trap cleanup EXIT
 
 echo "→ Baixando o Trelune…"
-curl -fL --progress-bar "$BASE/Trelune.dmg" -o "$work/Trelune.dmg"
-curl -fsSL "$BASE/Trelune.dmg.sha256" -o "$work/Trelune.dmg.sha256"
+stamp="$(date +%s)"   # skips stale CDN copies right after a new release
+curl -fL --progress-bar "$BASE/Trelune.dmg?t=$stamp" -o "$work/Trelune.dmg"
+curl -fsSL "$BASE/Trelune.dmg.sha256?t=$stamp" -o "$work/Trelune.dmg.sha256"
 echo "→ Conferindo o checksum…"
 (cd "$work" && shasum -a 256 -c Trelune.dmg.sha256 >/dev/null) || { echo "O checksum não confere. Tente de novo." >&2; exit 1; }
 
