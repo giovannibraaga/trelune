@@ -76,4 +76,7 @@ if [ -n "$IDENTITY" ] && [ -n "${NOTARY_PROFILE:-}" ]; then
 fi
 
 (cd "$OUT" && shasum -a 256 "$(basename "$DMG")" | tee "$(basename "$DMG").sha256")
-echo "Pronto: $DMG"
+# Stable names for https://github.com/<owner>/trelune/releases/latest/download/Trelune.dmg and install.sh.
+cp "$DMG" "$OUT/Trelune.dmg"
+(cd "$OUT" && shasum -a 256 Trelune.dmg > Trelune.dmg.sha256)
+echo "Pronto: $DMG (e $OUT/Trelune.dmg para o link fixo)"
