@@ -124,7 +124,7 @@ The app code lives in `Sources/Trelune/`, tests in `Tests/`, and scripts in `scr
 
 ## License
 
-The repository does not yet include a `LICENSE` file. Until a license is chosen and added, there is no explicit open-source license permitting reuse or redistribution of the code.
+Trelune is available under the [MIT License](LICENSE).
 
 ---
 
