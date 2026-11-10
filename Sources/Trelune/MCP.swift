@@ -351,7 +351,7 @@ struct AssistantsPage: View {
                 try? await Task.sleep(for: .seconds(3))
             }
         }
-        .alert("Assistentes", isPresented: Binding(get: { !notice.isEmpty }, set: { if !$0 { notice = "" } })) { Button("OK") { notice = "" } } message: { Text(notice) }
+        .alert(L("Assistentes"), isPresented: Binding(get: { !notice.isEmpty }, set: { if !$0 { notice = "" } })) { Button("OK") { notice = "" } } message: { Text(notice) }
     }
 
     private func check(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
@@ -367,14 +367,16 @@ struct AssistantsPage: View {
         Task {
             let output = await Task.detached { () -> String in
                 let process = Process(); process.executableURL = URL(fileURLWithPath: path); process.arguments = arguments
-                let input = Pipe(), output = Pipe(); process.standardInput = input; process.standardOutput = output; process.standardError = Pipe()
+                let input = Pipe(), output = Pipe(), errors = Pipe(); process.standardInput = input; process.standardOutput = output; process.standardError = errors
                 do { try process.run() } catch { return "erro: \(error.localizedDescription)" }
                 let requests = [#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"self-test","version":"1"}}}"#, #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#, #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#]
                 input.fileHandleForWriting.write(Data((requests.joined(separator: "\n") + "\n").utf8))
                 try? input.fileHandleForWriting.close()
                 let data = output.fileHandleForReading.readDataToEndOfFile()
+                let problem = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
                 process.waitUntilExit()
-                return String(decoding: data, as: UTF8.self)
+                let text = String(decoding: data, as: UTF8.self)
+                return text.isEmpty ? problem : text
             }.value
             testing = false
             let lines = output.split(separator: "\n").compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }

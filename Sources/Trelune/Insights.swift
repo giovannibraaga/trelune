@@ -218,7 +218,7 @@ enum APIDate {
 func compact(_ value: Int) -> String {
     let number = Double(value)
     let format: (Double, String) -> String = { v, suffix in
-        let formatter = NumberFormatter(); formatter.locale = Locale(identifier: "pt_BR"); formatter.maximumFractionDigits = v < 10 ? 2 : 1
+        let formatter = NumberFormatter(); formatter.locale = AppLanguage.locale; formatter.maximumFractionDigits = v < 10 ? 2 : 1
         return (formatter.string(from: NSNumber(value: v)) ?? "\(v)") + suffix
     }
     if abs(number) >= 1_000_000 { return format(number / 1_000_000, " mi") }

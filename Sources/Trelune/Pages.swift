@@ -163,53 +163,41 @@ struct Connections: View {
     @EnvironmentObject var meta: MetaConnection
     @EnvironmentObject var threads: ThreadsConnection
     @EnvironmentObject var x: XConnection
-    @State private var selected: String?
     var body: some View {
         let connected = PostStore.networks.filter(center.isConnected)
-        PageScroll(title: "Conexões", subtitle: "Gerencie suas contas e os destinos de publicação.", action: "+ Conectar conta", actionHandler: { selected = PostStore.networks.first { !center.isConnected($0) } ?? PostStore.networks.first }) {
+        PageScroll(title: "Conexões", subtitle: "Gerencie suas contas e os destinos de publicação.", action: "+ Conectar conta", actionHandler: { router.dialog = .choose }) {
             VStack(alignment: .leading, spacing: 0) {
                 Text("\(connected.count) \(connected.count == 1 ? "conectada" : "conectadas")   ·   \(PostStore.networks.count - connected.count) \(PostStore.networks.count - connected.count == 1 ? "disponível" : "disponíveis")").font(.system(size: 12)).foregroundStyle(Palette.muted)
                 Separator().padding(.top, 18)
                 ForEach(PostStore.networks, id: \.self) { network in
                     let on = center.isConnected(network)
+                    let attention = needsAttention(network)
                     RuleRow(height: 90) {
                         VStack(alignment: .leading, spacing: 9) {
                             Text(network).font(.system(size: 15, weight: .semibold))
-                            Text(on ? center.accountLabel(network) : "Ainda não conectada").font(.system(size: 12)).foregroundStyle(Palette.muted).lineLimit(1)
+                            Text(on ? center.accountLabel(network) : attention ? "Autorização expirada ou incompleta" : "Ainda não conectada").font(.system(size: 12)).foregroundStyle(Palette.muted).lineLimit(1)
                         }.frame(maxWidth: .infinity, alignment: .leading)
-                        Group { if on { DotStatus(on: true, onLabel: "Conectada").foregroundStyle(Palette.muted) } else { Text("Não conectada").foregroundStyle(Palette.muted) } }.font(.system(size: 11, weight: .medium)).frame(width: 220, alignment: .leading)
-                        HeaderButton(on ? "Gerenciar" : "Conectar", primary: !on, width: 158) { selected = network }
+                        Group {
+                            if on { DotStatus(on: true, onLabel: "Conectada") }
+                            else if attention { DotStatus(on: false, offLabel: "Precisa de atenção") }
+                            else { Text("Não conectada") }
+                        }.foregroundStyle(Palette.muted).font(.system(size: 11, weight: .medium)).frame(width: 220, alignment: .leading)
+                        HeaderButton(on ? "Gerenciar" : attention ? "Revisar" : "Conectar", primary: !on, width: 158) { router.dialog = on ? .manage(network) : attention ? .reconnect(network) : .setup(network) }
                     }
                 }
             }.padding(.top, -6)
         }
-        .sheet(isPresented: Binding(get: { selected != nil }, set: { if !$0 { selected = nil } })) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    HStack { Text("Conectar \(selected ?? "")").font(.title2.bold()); Spacer(); Button("Fechar") { selected = nil } }
-                    switch selected {
-                    case "YouTube": YouTubeConnectionView()
-                    case "TikTok": TikTokConfigurationView()
-                    case "Facebook", "Instagram": MetaConnectionView()
-                    case "Threads": ThreadsConnectionView()
-                    case "X": XConnectionView()
-                    default: EmptyView()
-                    }
-                    Divider()
-                    Text("Ainda não tem um app de desenvolvedor nessa rede? O guia mostra como criar a conta, o app e quais permissões pedir — as credenciais são suas e ficam só no Chaves do macOS.").font(.caption).foregroundStyle(Palette.muted)
-                    HStack {
-                    SecondaryButton("Guia de configuração") { NSWorkspace.shared.open(AppIdentity.setupGuide(selected ?? "")) }
-                    SecondaryButton("Abrir portal de desenvolvedores") {
-                        let urls = ["YouTube": "https://console.cloud.google.com/apis/credentials", "Instagram": "https://developers.facebook.com/apps/", "Facebook": "https://developers.facebook.com/apps/", "Threads": "https://developers.facebook.com/apps/", "TikTok": "https://developers.tiktok.com/", "X": "https://developer.x.com/en/portal/dashboard"]
-                        if let url = URL(string: urls[selected ?? ""] ?? "") { NSWorkspace.shared.open(url) }
-                    }
-                    }
-                }.padding(28)
-            }.frame(width: 580, height: 640)
-        }
-        .onAppear { if let pending = router.connection { selected = pending; router.connection = nil } }
-        .onChange(of: router.connection) { _, pending in if let pending { selected = pending; router.connection = nil } }
         .task { if meta.connected && meta.pagePosts.isEmpty { await meta.refreshContent() }; if threads.connected && threads.recent.isEmpty { await threads.refresh() } }
+    }
+    /// Credentials saved but no working authorization.
+    private func needsAttention(_ network: String) -> Bool {
+        switch network {
+        case "YouTube": youtube.configured && !center.isConnected(network)
+        case "TikTok": tiktok.configured && !tiktok.connected
+        case "X": x.configured && !x.connected
+        case "Instagram", "Facebook": meta.configured && !center.isConnected(network)
+        default: false
+        }
     }
 }
 

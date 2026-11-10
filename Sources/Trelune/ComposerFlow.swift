@@ -164,7 +164,10 @@ struct Composer: View {
                         field("Opções") { NetworkOptions(network: network, draft: $draft).padding(14).frame(maxWidth: .infinity, alignment: .leading).background(Palette.panel).clipShape(RoundedRectangle(cornerRadius: 9)) }
                     }
                 }.frame(maxWidth: .infinity)
-                mediaPanel(network).frame(width: 392)
+                VStack(spacing: 18) {
+                    mediaPanel(network)
+                    SocialPreview(networks: [network], post: prepared(), network: .constant(network))
+                }.frame(width: 392)
             }.padding(.top, 26)
             footer(note: "Formato e disponibilidade dependem da plataforma.", button: "Continuar para agendar  →") { if validate() { go(.moment) } }
         }
@@ -195,8 +198,9 @@ struct Composer: View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
                 ForEach(Array(draft.media.enumerated()), id: \.offset) { index, path in
-                    Thumbnail(path: path, size: 54).overlay(alignment: .topLeading) {
-                        Text(index == 0 ? "Capa" : "\(index + 1)").font(.system(size: 9, weight: .bold)).foregroundStyle(.white).padding(.horizontal, 5).frame(height: 15).background(Color.black.opacity(0.6)).clipShape(Capsule()).padding(3)
+                    VStack(spacing: 5) {
+                        Thumbnail(path: path, size: 76)
+                        Text(index == 0 && draft.media.count > 1 ? "Capa" : "\(index + 1)").font(.system(size: 10, weight: index == 0 && draft.media.count > 1 ? .semibold : .regular)).foregroundStyle(Palette.muted)
                     }
                     .contextMenu {
                         if index > 0 { Button("Mover para a esquerda") { draft.media.swapAt(index, index - 1) }; Button("Tornar capa") { let item = draft.media.remove(at: index); draft.media.insert(item, at: 0) } }
@@ -243,19 +247,7 @@ struct Composer: View {
     }
 
     private var previewPanel: some View {
-        let network = draft.platforms.contains(preview) ? preview : (draft.platforms.first ?? "Instagram")
-        let post = prepared()
-        return VStack(alignment: .leading, spacing: 0) {
-            ColumnHeader("Prévia")
-            Group {
-                if let first = post.media.first { Thumbnail(path: first, height: 230, fit: true) } else { MediaPlaceholder(height: 230) }
-            }.padding(.top, 18)
-            Text(post.text(for: network).isEmpty ? "Sua publicação aparecerá aqui." : post.text(for: network)).font(.system(size: 13)).lineLimit(4).padding(.top, 20)
-            Menu {
-                ForEach(draft.platforms, id: \.self) { item in Button(item) { preview = item } }
-            } label: { Text("\(network)  ▾").font(.system(size: 11)).foregroundStyle(Palette.muted) }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().padding(.top, 16)
-        }.padding(20).frame(maxWidth: .infinity, alignment: .leading).background(Palette.panel).clipShape(RoundedRectangle(cornerRadius: 12))
+        SocialPreview(networks: draft.platforms, post: prepared(), network: $preview)
     }
 
     // MARK: 19 · Unified post
@@ -348,7 +340,7 @@ struct Composer: View {
                         field("Opções") { NetworkOptions(network: network, draft: $draft).padding(14).frame(maxWidth: .infinity, alignment: .leading).background(Palette.panel).clipShape(RoundedRectangle(cornerRadius: 9)) }
                     }
                 }.frame(maxWidth: .infinity)
-                NetworkPreview(network: network, post: prepared()).frame(width: 376)
+                SocialPreview(networks: draft.platforms, post: prepared(), network: Binding(get: { network }, set: { step = .customize($0) })).frame(width: 376)
             }.padding(.top, 26)
             HStack {
                 TextLink(title: "Restaurar conteúdo base") { draft.overrides[network] = nil; draft.titles[network] = nil }
@@ -586,7 +578,7 @@ struct Composer: View {
         HStack(spacing: 14) {
             ForEach(Array(["Destinos", "Conteúdo", "Revisão"].enumerated()), id: \.offset) { index, name in
                 if index > 0 { Text("/").foregroundStyle(Palette.muted) }
-                Button { jump(to: index + 1) } label: { Text(String(format: "%02d  %@", index + 1, name)).foregroundStyle(index + 1 == current ? Palette.text : Palette.muted) }.buttonStyle(.plain).disabled(index + 1 > current)
+                Button { jump(to: index + 1) } label: { Text(String(format: "%02d  %@", index + 1, L(name))).foregroundStyle(index + 1 == current ? Palette.text : Palette.muted) }.buttonStyle(.plain).disabled(index + 1 > current)
             }
         }.font(.system(size: 12, weight: .medium))
     }
@@ -772,7 +764,7 @@ struct MonthGrid: View {
                 Button { shift(1) } label: { Text("›") }.buttonStyle(.plain)
             }.font(.system(size: large ? 16 : 13, weight: .semibold))
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: large ? 16 : 6) {
-                ForEach(Array(["D", "S", "T", "Q", "Q", "S", "S"].enumerated()), id: \.offset) { _, day in Text(day).font(.system(size: 10, weight: .medium)).foregroundStyle(Palette.muted) }
+                ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, day in Text(verbatim: day).font(.system(size: 10, weight: .medium)).foregroundStyle(Palette.muted) }
                 ForEach(Array(cells.enumerated()), id: \.offset) { _, day in
                     if let day {
                         let selected = calendar.isDate(day, inSameDayAs: date)
@@ -788,11 +780,12 @@ struct MonthGrid: View {
         }.onAppear { month = date }
     }
     private var title: String {
-        var style = Date.FormatStyle().month(.wide).year(); style.timeZone = Workspace.timeZone; style.locale = Locale(identifier: "pt_BR")
+        var style = Date.FormatStyle().month(.wide).year(); style.timeZone = Workspace.timeZone; style.locale = AppLanguage.locale
         let text = month.formatted(style).replacingOccurrences(of: " de ", with: " ")
         return text.prefix(1).uppercased() + text.dropFirst()
     }
     private var canGoBack: Bool { calendar.compare(month, to: Date(), toGranularity: .month) == .orderedDescending }
+    private var weekdaySymbols: [String] { var c = calendar; c.locale = AppLanguage.locale; return c.veryShortWeekdaySymbols }
     private var cells: [Date?] {
         guard let interval = calendar.dateInterval(of: .month, for: month), let count = calendar.range(of: .day, in: .month, for: month)?.count else { return [] }
         let lead = (calendar.component(.weekday, from: interval.start) - 1 + 7) % 7
@@ -824,24 +817,6 @@ struct TimeList: View {
                 }.padding(6)
             }.onAppear { proxy.scrollTo(calendar.component(.hour, from: date) * 4, anchor: .center) }
         }
-    }
-}
-
-/// "(UTC−03:00) São Paulo ▾"
-struct ZoneMenu: View {
-    @Binding var identifier: String
-    static let common = ["America/Sao_Paulo", "America/Manaus", "America/Recife", "America/Fortaleza", "America/New_York", "America/Los_Angeles", "Europe/Lisbon", "Europe/London", "UTC"]
-    static func label(_ id: String) -> String {
-        let zone = TimeZone(identifier: id) ?? .current
-        let seconds = zone.secondsFromGMT(), sign = seconds < 0 ? "−" : "+"
-        let city = id.split(separator: "/").last.map { $0.replacingOccurrences(of: "_", with: " ") } ?? id
-        return String(format: "(UTC%@%02d:%02d) %@", sign, abs(seconds) / 3600, (abs(seconds) % 3600) / 60, city)
-    }
-    var body: some View {
-        Menu {
-            ForEach(Array(Set(Self.common + [TimeZone.current.identifier, identifier])).sorted(), id: \.self) { id in Button(Self.label(id)) { identifier = id } }
-        } label: { Text("\(Self.label(identifier))  ▾").font(.system(size: 13, weight: .medium)).foregroundStyle(Palette.text) }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
 }
 

@@ -8,7 +8,7 @@ struct SettingsPage: View {
     @EnvironmentObject var host: MediaHost
     @EnvironmentObject var center: PublishingCenter
     @EnvironmentObject var router: Router
-    @AppStorage("workspaceName") var name = "Workspace pessoal"
+    @AppStorage("workspaceName") var name = L("Workspace pessoal")
     @AppStorage("userName") var userName = NSFullUserName()
     @AppStorage(Workspace.timeZoneKey) var timezone = TimeZone.current.identifier
     @AppStorage("publishOverdue") var publishOverdue = true
@@ -56,8 +56,8 @@ struct SettingsPage: View {
         }
         .onAppear(perform: load)
         .onChange(of: host.config) { _, config in if let config { hostDraft = config } }
-        .alert("Ajustes", isPresented: Binding(get: { !notice.isEmpty }, set: { if !$0 { notice = "" } })) { Button("OK") { notice = "" } } message: { Text(notice) }
-        .confirmationDialog("Apagar todas as \(store.posts.count) publicações deste Mac?", isPresented: $confirmErase, titleVisibility: .visible) {
+        .alert(L("Ajustes"), isPresented: Binding(get: { !notice.isEmpty }, set: { if !$0 { notice = "" } })) { Button("OK") { notice = "" } } message: { Text(notice) }
+        .confirmationDialog(L("Apagar todas as \(store.posts.count) publicações deste Mac?"), isPresented: $confirmErase, titleVisibility: .visible) {
             Button("Apagar", role: .destructive) { store.removeAll(); notice = "Publicações locais apagadas." }
             Button("Cancelar", role: .cancel) {}
         } message: { Text("Esta ação não pode ser desfeita. Conteúdo já publicado nas redes não é afetado.") }
@@ -145,7 +145,10 @@ struct SettingsPage: View {
                 ValueBox(label: "Fuso horário") { ZoneMenu(identifier: $draftZone) }
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Idioma").font(.system(size: 13, weight: .medium)).foregroundStyle(Palette.muted)
-                    Text("Português (Brasil)  ▾").font(.system(size: 14))
+                    HStack(spacing: 10) {
+                        Text(verbatim: AppLanguage.isPortuguese ? "Português (Brasil)" : "English").font(.system(size: 14))
+                        Text("Segue o idioma do macOS").font(.system(size: 11)).foregroundStyle(Palette.muted)
+                    }
                 }
             }.padding(.top, 36)
             saveButton

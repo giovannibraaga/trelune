@@ -119,7 +119,7 @@ struct Overview: View {
     @State var days = 30
     @AppStorage("overviewChartMetric") var chartMetric = "Visualizações"
     private var today: String {
-        var style = Date.FormatStyle().weekday(.wide).day().month(.wide); style.timeZone = Workspace.timeZone; style.locale = Locale(identifier: "pt_BR")
+        var style = Date.FormatStyle().weekday(.wide).day().month(.wide); style.timeZone = Workspace.timeZone; style.locale = AppLanguage.locale
         return Date().formatted(style).uppercased()
     }
 
@@ -177,7 +177,7 @@ struct Metrics: View {
                 .padding(.top, -8)
         }
         .task { await DashboardRefresh.run(center: center, force: false) }
-        .alert("Relatório", isPresented: Binding(get: { !notice.isEmpty }, set: { if !$0 { notice = "" } })) { Button("OK") { notice = "" } } message: { Text(notice) }
+        .alert(L("Relatório"), isPresented: Binding(get: { !notice.isEmpty }, set: { if !$0 { notice = "" } })) { Button("OK") { notice = "" } } message: { Text(notice) }
     }
     func export() {
         let picker = NSSavePanel(); picker.nameFieldStringValue = "relatorio-trelune.csv"; picker.allowedContentTypes = [.commaSeparatedText]

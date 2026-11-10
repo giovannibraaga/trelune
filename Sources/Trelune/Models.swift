@@ -31,11 +31,11 @@ enum AppPaths {
 enum Workspace {
     static let timeZoneKey = "timezone"
     static var timeZone: TimeZone { TimeZone(identifier: UserDefaults.standard.string(forKey: timeZoneKey) ?? "") ?? .current }
-    static var calendar: Calendar { var calendar = Calendar(identifier: .gregorian); calendar.timeZone = timeZone; calendar.locale = Locale(identifier: "pt_BR"); calendar.firstWeekday = 1; return calendar }
+    static var calendar: Calendar { var calendar = Calendar(identifier: .gregorian); calendar.timeZone = timeZone; calendar.locale = AppLanguage.locale; calendar.firstWeekday = 1; return calendar }
     static func format(_ date: Date, date dateStyle: Date.FormatStyle.DateStyle = .abbreviated, time timeStyle: Date.FormatStyle.TimeStyle = .shortened) -> String {
         var style = Date.FormatStyle(date: dateStyle, time: timeStyle)
         style.timeZone = timeZone
-        style.locale = Locale(identifier: "pt_BR")
+        style.locale = AppLanguage.locale
         return date.formatted(style)
     }
     /// "18:00" in the workspace time zone.

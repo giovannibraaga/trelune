@@ -10,7 +10,7 @@ struct StepTrail: View {
         HStack(spacing: 14) {
             ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
                 if index > 0 { Text("/").foregroundStyle(Palette.muted) }
-                Text(String(format: "%02d  %@", index + 1, step)).foregroundStyle(index + 1 == current ? Palette.text : Palette.muted)
+                Text(String(format: "%02d  %@", index + 1, L(step))).foregroundStyle(index + 1 == current ? Palette.text : Palette.muted)
             }
         }.font(.system(size: 12, weight: .medium))
     }
@@ -131,7 +131,7 @@ struct TextLink: View {
 struct ColumnHeader: View {
     let text: String
     init(_ text: String) { self.text = text }
-    var body: some View { Text(text.uppercased()).font(.system(size: 10, weight: .semibold)).foregroundStyle(Palette.muted) }
+    var body: some View { Text(verbatim: L(text).uppercased(with: AppLanguage.locale)).font(.system(size: 10, weight: .semibold)).foregroundStyle(Palette.muted) }
 }
 
 /// Centered result card (Tudo pronto, Publicar agora?, Precisa de atenção).

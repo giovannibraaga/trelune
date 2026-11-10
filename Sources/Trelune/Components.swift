@@ -285,7 +285,7 @@ struct Thumbnail: View {
     }
 }
 
-private let decimalFormatter: NumberFormatter = { let f = NumberFormatter(); f.numberStyle = .decimal; f.locale = Locale(identifier: "pt_BR"); return f }()
+private let decimalFormatter: NumberFormatter = { let f = NumberFormatter(); f.numberStyle = .decimal; f.locale = AppLanguage.locale; return f }()
 func formatted(_ number: Int) -> String { decimalFormatter.string(from: NSNumber(value: number)) ?? "\(number)" }
 func formatted(_ number: Int64) -> String { decimalFormatter.string(from: NSNumber(value: number)) ?? "\(number)" }
 
@@ -498,7 +498,7 @@ struct DateTimeSelector: View {
         }.buttonStyle(.plain)
     }
     private var monthTitle: String {
-        var style = Date.FormatStyle().month(.wide).year(); style.timeZone = Workspace.timeZone; style.locale = Locale(identifier: "pt_BR")
+        var style = Date.FormatStyle().month(.wide).year(); style.timeZone = Workspace.timeZone; style.locale = AppLanguage.locale
         return month.formatted(style).uppercased()
     }
     private var timeText: String { String(format: "%02d:%02d", calendar.component(.hour, from: date), calendar.component(.minute, from: date)) }
@@ -631,7 +631,7 @@ struct TrendChart: View {
                 Text("Passe o mouse para ver cada dia").font(.system(size: 10)).foregroundStyle(Palette.muted.opacity(0.7))
             } }
             if empty {
-                ContentUnavailableView("Sem dados no período", systemImage: "chart.xyaxis.line", description: Text("Nada registrado pelas redes conectadas nestes dias.")).frame(height: height)
+                ContentUnavailableView(L("Sem dados no período"), systemImage: "chart.xyaxis.line", description: Text("Nada registrado pelas redes conectadas nestes dias.")).frame(height: height)
             } else {
                 chart.frame(height: height)
             }
@@ -680,7 +680,7 @@ struct TrendChart: View {
                 AxisValueLabel { if let number = value.as(Int.self) { Text(compact(number)).foregroundStyle(Palette.muted) } }
             }
         }
-        .environment(\.locale, Locale(identifier: "pt_BR"))
+        .environment(\.locale, AppLanguage.locale)
         .environment(\.timeZone, Workspace.timeZone)
     }
 

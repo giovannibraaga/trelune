@@ -79,13 +79,29 @@ TreluneApp.main()
     /// Development aid: renders every page of the real window to PNG files, then quits.
     private func captureSnapshots(to directory: String) {
         let pages = ["Visão geral", "Métricas", "Calendário", "Publicações", "Biblioteca", "Conexões", "MCP e assistentes", "Ajustes", "Detalhes",
-                     "destinations", "format", "individual", "content", "unified", "customize", "media", "review", "destinationsReview", "moment", "confirmNow", "scheduled", "cover"]
+                     "destinations", "format", "individual", "content", "unified", "customize", "media", "review", "destinationsReview", "moment", "confirmNow", "scheduled", "cover", "dlg-choose", "dlg-YouTube", "dlg-X", "dlg-TikTok", "dlg-Threads", "dlg-Instagram", "dlg-manage", "dlg-disconnect", "menubar"]
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(Double(ProcessInfo.processInfo.environment["TRELUNE_SNAPSHOT_WAIT"] ?? "8") ?? 8))
             let sample = store.posts.first { $0.media.count > 0 && $0.platforms.count > 1 }?.id ?? store.posts.first?.id
             for (index, page) in pages.enumerated() {
                 switch page {
                 case "Detalhes": if let sample { router.detail(sample) }
+                case "dlg-choose": router.page = "Conexões"; router.dialog = .choose
+                case "dlg-manage": router.dialog = .manage("YouTube")
+                case "dlg-disconnect": router.dialog = .disconnect("YouTube")
+                case let name where name.hasPrefix("dlg-"): router.dialog = .setup(String(name.dropFirst(4)))
+                case "menubar":
+                    router.dialog = nil
+                    let host = NSHostingView(rootView: MenuBarPanel().environmentObject(store).environmentObject(center).environmentObject(router))
+                    host.frame = NSRect(x: 0, y: 0, width: 380, height: 620)
+                    let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+                    window.contentView = host; window.orderFrontRegardless()
+                    try? await Task.sleep(for: .seconds(1.5))
+                    if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+                        host.cacheDisplay(in: host.bounds, to: rep)
+                        try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: directory).appendingPathComponent(String(format: "%02d-menubar.png", index)))
+                    }
+                    window.orderOut(nil); continue
                 case let step where step.first?.isLowercase == true: router.compose(ComposerSeed(postID: ["destinations", "format"].contains(step) ? nil : sample, startStep: step))
                 default: router.page = page
                 }
@@ -128,7 +144,9 @@ struct ComposerSeed: Equatable {
     func detail(_ id: UUID) { detailID = id; page = "Detalhes" }
     /// Opens the "Publicar agora?" confirmation (Figma 35) for an existing publication.
     func publishNow(_ id: UUID) { compose(ComposerSeed(postID: id, publishNow: true)) }
-    func connect(_ network: String) { page = "Conexões"; connection = network }
+    /// Connection dialog shown over the whole window (Figma 42–53).
+    @Published var dialog: ConnectionDialog?
+    func connect(_ network: String) { page = "Conexões"; dialog = .setup(network) }
 }
 
 struct TreluneApp: App {
@@ -146,46 +164,22 @@ struct TreluneApp: App {
                 Button("Nova publicação") { model.router.compose() }.keyboardShortcut("n")
             }
         }
-        MenuBarExtra("Trelune", systemImage: "circle.hexagonpath") {
-            MenuBarContent().environmentObject(model.store).environmentObject(model.center).environmentObject(model.router)
-        }
-    }
-}
-
-struct MenuBarContent: View {
-    @EnvironmentObject private var store: PostStore
-    @EnvironmentObject private var center: PublishingCenter
-    @EnvironmentObject private var router: Router
-    @Environment(\.openWindow) private var openWindow
-    var upcoming: [Publication] { store.posts.filter { $0.status == PostStatus.scheduled }.sorted { $0.date < $1.date } }
-    var body: some View {
-        if upcoming.isEmpty { Text("Nenhum agendamento") }
-        ForEach(upcoming.prefix(5)) { post in
-            Button("\(Workspace.format(post.date)) · \(post.title)") { open { router.edit(post.id) } }
-        }
-        if !center.lastMessage.isEmpty { Divider(); Text(center.lastMessage).lineLimit(2) }
-        Divider()
-        Button("Nova publicação") { open { router.compose() } }
-        Button("Abrir Trelune") { open {} }
-        Divider()
-        Button("Sair") { NSApp.terminate(nil) }.keyboardShortcut("q")
-    }
-    private func open(_ then: () -> Void) {
-        then()
-        if !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) { openWindow(id: "main") }
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
+        MenuBarExtra {
+            MenuBarPanel().environmentObject(model.store).environmentObject(model.center).environmentObject(model.router)
+        } label: { MenuBarIcon() }
+        .menuBarExtraStyle(.window)
     }
 }
 
 struct AppShell: View {
     @EnvironmentObject private var store: PostStore
     @EnvironmentObject private var router: Router
-    @AppStorage("workspaceName") private var workspaceName = "Workspace pessoal"
+    @AppStorage("workspaceName") private var workspaceName = L("Workspace pessoal")
     @AppStorage("userName") private var userName = NSFullUserName()
     @AppStorage(Appearance.key) private var appearance = Appearance.system.rawValue
     // Order and glyphs from the Figma navigation.
-    private let nav = [("diamond", "Visão geral"), ("calendar", "Calendário"), ("list.bullet.rectangle", "Publicações"), ("square.split.2x1", "Biblioteca"), ("waveform.path.ecg", "Métricas"), ("arrow.triangle.2.circlepath", "Conexões"), ("command", "MCP e assistentes")]
+    // SF Symbols that say what each section holds.
+    private let nav = [("square.grid.2x2", "Visão geral"), ("calendar", "Calendário"), ("rectangle.stack", "Publicações"), ("photo.on.rectangle.angled", "Biblioteca"), ("chart.bar.xaxis", "Métricas"), ("link", "Conexões"), ("sparkles", "MCP e assistentes")]
 
     var body: some View {
         HStack(spacing: 0) {
@@ -205,6 +199,7 @@ struct AppShell: View {
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Palette.bg)
         }
+        .overlay { ConnectionDialogs(dialog: $router.dialog) }
         .background(Palette.bg).foregroundStyle(Palette.text).tint(Palette.accent)
         .background { Button("") { router.page = "Publicações"; router.focusSearch = true }.keyboardShortcut("k").opacity(0).allowsHitTesting(false) }
         .onAppear { Appearance.apply() }
@@ -220,7 +215,7 @@ struct AppShell: View {
         let selected = section == title
         return Button { router.page = title } label: {
             HStack(spacing: 14) {
-                Image(systemName: icon).font(.system(size: 13, weight: .medium)).frame(width: 16)
+                Image(systemName: icon).font(.system(size: 14, weight: .regular)).symbolRenderingMode(.monochrome).frame(width: 20)
                 Text(title).font(.system(size: 14, weight: selected ? .semibold : .medium))
             }
             .foregroundStyle(selected ? Palette.text : Palette.muted)

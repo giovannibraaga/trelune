@@ -371,7 +371,7 @@ enum Notifier {
         let key = failure ? "notifyFailed" : "notifyScheduled"
         guard UserDefaults.standard.object(forKey: key) as? Bool ?? true else { return }
         let content = UNMutableNotificationContent()
-        content.title = title; content.body = body; content.sound = .default
+        content.title = L(title); content.body = L(body); content.sound = .default
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 }

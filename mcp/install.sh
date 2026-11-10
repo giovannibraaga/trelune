@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 command -v colima >/dev/null || { echo "Instale o Colima: brew install colima docker docker-compose"; exit 1; }
-brew services start colima >/dev/null   # starts the Docker VM at every login
+brew services start colima >/dev/null 2>&1 || true   # starts the Docker VM at every login (already loaded is fine)
 colima status >/dev/null 2>&1 || colima start
 docker compose up -d --build
 docker exec trelune-mcp node /app/server.mjs --check-network

@@ -12,7 +12,7 @@ Organize, revise e publique conteúdo nas suas redes sociais em um app nativo pa
   <img src="docs/images/calendar-light.png" alt="Calendário mensal" width="440" />
 </p>
 
-Interface minimalista com modo escuro e claro (Ajustes → Aparência: Escuro, Claro ou Sistema).
+Interface minimalista com modo escuro e claro (Ajustes → Aparência: Escuro, Claro ou Sistema). O app segue o idioma do macOS: português do Brasil quando o sistema está em português e inglês nos demais casos. O fuso do workspace pode ser qualquer zona do mundo, uma por região de cada país, ordenadas por UTC.
 
 ## O que já dá para fazer
 

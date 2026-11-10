@@ -37,10 +37,12 @@ struct CalendarPage: View {
     }
 
     private var title: String {
-        var style = Date.FormatStyle().month(.wide).year(); style.timeZone = Workspace.timeZone; style.locale = Locale(identifier: "pt_BR")
+        var style = Date.FormatStyle().month(.wide).year(); style.timeZone = Workspace.timeZone; style.locale = AppLanguage.locale
         let text = anchor.formatted(style).replacingOccurrences(of: " de ", with: " ")
         return text.prefix(1).uppercased() + text.dropFirst()
     }
+    /// Monday first, in the app language ("Seg", "Mon"…).
+    private var weekdayNames: [String] { var c = calendar; c.locale = AppLanguage.locale; let names = c.shortWeekdaySymbols; return Array(names[1...] + names[..<1]).map { $0.replacingOccurrences(of: ".", with: "") } }
     private func shift(_ delta: Int) { anchor = calendar.date(byAdding: mode == "Semana" ? .weekOfYear : .month, value: delta, to: anchor) ?? anchor }
     private var weekDays: [Date?] {
         let start = calendar.dateInterval(of: .weekOfYear, for: anchor)!.start
@@ -57,7 +59,7 @@ struct CalendarPage: View {
     private func grid(days: [Date?], height: CGFloat) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                ForEach(["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"], id: \.self) { ColumnHeader($0).padding(.leading, 14).frame(maxWidth: .infinity, alignment: .leading) }
+                ForEach(Array(weekdayNames.enumerated()), id: \.offset) { ColumnHeader($0.element).padding(.leading, 14).frame(maxWidth: .infinity, alignment: .leading) }
             }.frame(height: 56)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 0) {
                 ForEach(Array(days.enumerated()), id: \.offset) { _, day in cell(day, height: height) }
@@ -177,7 +179,7 @@ struct Posts: View {
         }
         .onAppear { if router.focusSearch { searching = true; router.focusSearch = false } }
         .onChange(of: router.focusSearch) { _, value in if value { searching = true; router.focusSearch = false } }
-        .confirmationDialog("Excluir “\(deleting?.title ?? "")”?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
+        .confirmationDialog(L("Excluir “\(deleting?.title ?? "")”?"), isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
             Button("Excluir", role: .destructive) { if let id = deleting?.id { store.remove(id) }; deleting = nil }
             Button("Cancelar", role: .cancel) { deleting = nil }
         } message: { Text("A publicação é removida deste Mac. Conteúdo já enviado às redes não é apagado nelas.") }
@@ -265,7 +267,7 @@ struct PostDetail: View {
                     }.padding(.top, 30)
                 }.padding(.top, -6)
             }
-            .confirmationDialog("Excluir “\(deleting?.title ?? "")”?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
+            .confirmationDialog(L("Excluir “\(deleting?.title ?? "")”?"), isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
                 Button("Excluir", role: .destructive) { if let id = deleting?.id { store.remove(id); router.page = "Publicações" }; deleting = nil }
                 Button("Cancelar", role: .cancel) { deleting = nil }
             }
