@@ -443,11 +443,10 @@ struct Composer: View {
     }
 
     @State private var dateOpen = false
-    @State private var timeOpen = false
     private var whenFields: some View {
         VStack(alignment: .leading, spacing: 22) {
             whenField("Data", Workspace.format(draft.date, date: .long, time: .omitted), open: $dateOpen) { MonthGrid(date: $draft.date).padding(16).frame(width: 320).background(Palette.panel) }
-            whenField("Horário", Workspace.time(draft.date), open: $timeOpen) { TimeList(date: $draft.date).frame(width: 160, height: 280).background(Palette.panel) }
+            timeFields
             VStack(alignment: .leading, spacing: 8) {
                 Text("Fuso horário").font(.system(size: 12)).foregroundStyle(Palette.muted)
                 ZoneMenu(identifier: $timezone)
@@ -460,6 +459,10 @@ struct Composer: View {
             Button { open.wrappedValue.toggle() } label: { Text(value).font(.system(size: 13)).padding(.horizontal, 12).frame(maxWidth: .infinity, minHeight: 36, alignment: .leading).contentShape(Rectangle()) }.buttonStyle(.plain)
                 .popover(isPresented: open, arrowEdge: .bottom, content: popup)
         }
+    }
+
+    private var timeFields: some View {
+        ScheduleTimeFields(date: $draft.date)
     }
 
     // MARK: 21 · Moment
@@ -478,8 +481,7 @@ struct Composer: View {
                             Text("O envio começa logo após a confirmação.").font(.system(size: 12)).foregroundStyle(Palette.muted).padding(.top, 14)
                         } else {
                             Text("Horário").font(.system(size: 13, weight: .semibold))
-                            Button { timeOpen.toggle() } label: { Text("\(Workspace.time(draft.date))  ▾").font(.system(size: 13)) }.buttonStyle(.plain).padding(.top, 18)
-                                .popover(isPresented: $timeOpen, arrowEdge: .bottom) { TimeList(date: $draft.date).frame(width: 160, height: 280).background(Palette.panel) }
+                            timeFields.padding(.top, 18)
                             Separator().padding(.vertical, 18)
                             Text("Fuso horário").font(.system(size: 11)).foregroundStyle(Palette.muted)
                             ZoneMenu(identifier: $timezone).padding(.top, 8)
@@ -725,6 +727,57 @@ struct Composer: View {
     }
 }
 
+/// App-styled hour and minute controls used by both scheduling steps.
+struct ScheduleTimeFields: View {
+    @Binding var date: Date
+    @State private var openPart: Part?
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 5), count: 4)
+    private var calendar: Calendar { Workspace.calendar }
+    private enum Part: Equatable { case hour, minute }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            field("Hora", value: calendar.component(.hour, from: date), part: .hour, values: Array(0..<24))
+            field("Minutos", value: calendar.component(.minute, from: date) / 15 * 15, part: .minute, values: [0, 15, 30, 45])
+        }
+    }
+
+    private func field(_ title: String, value: Int, part: Part, values: [Int]) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title).font(.system(size: 12)).foregroundStyle(Palette.muted)
+            Button { openPart = openPart == part ? nil : part } label: {
+                HStack(spacing: 8) {
+                    Text(String(format: "%02d", value)).font(.system(size: 14, weight: .medium).monospacedDigit()).foregroundStyle(Palette.text)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(Palette.muted)
+                }.padding(.horizontal, 11).frame(width: 88, height: 38).background(Palette.raised).clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(openPart == part ? Palette.accent.opacity(0.75) : Palette.stroke, lineWidth: 1))
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
+            }.buttonStyle(.plain)
+                .popover(isPresented: Binding(get: { openPart == part }, set: { if !$0 && openPart == part { openPart = nil } }), arrowEdge: .bottom) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(part == .hour ? "Selecione a hora" : "Selecione os minutos").font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.muted)
+                        LazyVGrid(columns: columns, spacing: 5) {
+                            ForEach(values, id: \.self) { option in
+                                Button {
+                                    let hour = part == .hour ? option : calendar.component(.hour, from: date)
+                                    let minute = part == .minute ? option : calendar.component(.minute, from: date) / 15 * 15
+                                    date = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
+                                    openPart = nil
+                                } label: {
+                                    Text(String(format: "%02d", option)).font(.system(size: 12, weight: option == value ? .semibold : .regular).monospacedDigit())
+                                        .foregroundStyle(option == value ? Palette.bg : Palette.text)
+                                        .frame(maxWidth: .infinity).frame(height: 32)
+                                        .background(option == value ? Palette.accent : Palette.raised).clipShape(RoundedRectangle(cornerRadius: 6))
+                                }.buttonStyle(.plain)
+                            }
+                        }
+                    }.padding(12).frame(width: part == .hour ? 218 : 192).background(Palette.panel)
+                }
+        }
+    }
+}
+
 // MARK: - Inputs without borders (Figma fields)
 
 struct PlainInput: View {
@@ -795,28 +848,6 @@ struct MonthGrid: View {
     private func pick(_ day: Date) {
         let h = calendar.component(.hour, from: date), m = calendar.component(.minute, from: date)
         date = calendar.date(bySettingHour: h, minute: m, second: 0, of: day) ?? day
-    }
-}
-
-/// Times every 15 minutes, in the workspace time zone.
-struct TimeList: View {
-    @Binding var date: Date
-    private var calendar: Calendar { Workspace.calendar }
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 2) {
-                    ForEach(0..<96, id: \.self) { slot in
-                        let h = slot / 4, m = (slot % 4) * 15
-                        let selected = calendar.component(.hour, from: date) == h && calendar.component(.minute, from: date) == m
-                        Button { date = calendar.date(bySettingHour: h, minute: m, second: 0, of: date) ?? date } label: {
-                            Text(String(format: "%02d:%02d", h, m)).font(.system(size: 13, weight: selected ? .semibold : .regular).monospacedDigit()).foregroundStyle(selected ? Palette.bg : Palette.text)
-                                .frame(maxWidth: .infinity).frame(height: 28).background(selected ? Palette.accent : .clear).clipShape(RoundedRectangle(cornerRadius: 6)).contentShape(Rectangle())
-                        }.buttonStyle(.plain).id(slot)
-                    }
-                }.padding(6)
-            }.onAppear { proxy.scrollTo(calendar.component(.hour, from: date) * 4, anchor: .center) }
-        }
     }
 }
 

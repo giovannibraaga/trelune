@@ -144,7 +144,7 @@ struct Library: View {
     private func add(_ paths: [String]) { serialized = Array(Set(imported + paths)).sorted().joined(separator: "\n") }
     private func addFolder(_ path: String) { if !folders.contains(path) { foldersSerialized = (folders + [path]).joined(separator: "\n") } }
     private func pickFolder() {
-        let picker = NSOpenPanel(); picker.canChooseDirectories = true; picker.canChooseFiles = false; picker.allowsMultipleSelection = true; picker.prompt = "Monitorar"
+        let picker = NSOpenPanel(); picker.canChooseDirectories = true; picker.canChooseFiles = false; picker.allowsMultipleSelection = true; picker.prompt = L("Monitorar")
         if picker.runModal() == .OK { for url in picker.urls { addFolder(url.path) } }
     }
     func load() {

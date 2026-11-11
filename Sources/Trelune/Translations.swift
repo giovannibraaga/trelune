@@ -1,6 +1,7 @@
 // Generated from the UI strings (Portuguese → English). Regenerate when adding UI text.
 enum Translations {
     static let english: [String: String] = [
+        "Monitorar": "Monitor",
         "Aguardando": "Waiting",
         "Aguardando…": "Waiting…",
         "Aguarde…": "Please wait…",

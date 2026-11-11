@@ -36,6 +36,8 @@ PLIST
 # Sign with a stable identity so Keychain "Always Allow" survives rebuilds.
 # Ad-hoc signatures are identified by the binary hash, which changes every build.
 identity="${CODESIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk '/"Apple Development/ { print $2; exit }')}"
+# File-provider provenance metadata can make codesign reject the generated bundle.
+xattr -cr "$APP"
 if [ -n "$identity" ]; then
   codesign --force --timestamp=none --sign "$identity" "$APP"
 else

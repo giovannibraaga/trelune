@@ -149,7 +149,7 @@ struct TikTokExportView: View {
         .task { if let file { player = AVPlayer(url: file) } }
         .onChange(of: mode) { _, value in consent = false; if value == "direct" { Task { await loadCreator() } } }
         .onDisappear { player?.pause() }
-        .confirmationDialog(mode == "draft" ? "Enviar o vídeo para \(tiktok.displayName)? Você finalizará a publicação no TikTok." : "Publicar o vídeo em \(tiktok.displayName) com a visibilidade \(privacyLabel(privacy))?", isPresented: $confirming, titleVisibility: .visible) {
+        .confirmationDialog(L(mode == "draft" ? "Enviar o vídeo para \(tiktok.displayName)? Você finalizará a publicação no TikTok." : "Publicar o vídeo em \(tiktok.displayName) com a visibilidade \(privacyLabel(privacy))?"), isPresented: $confirming, titleVisibility: .visible) {
             Button(mode == "draft" ? "Enviar vídeo" : "Publicar vídeo") { send() }
             Button("Cancelar", role: .cancel) {}
         }

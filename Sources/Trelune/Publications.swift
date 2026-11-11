@@ -28,8 +28,8 @@ struct CalendarPage: View {
                 Separator().padding(.top, 18)
                 switch mode {
                 case "Lista": list
-                case "Semana": grid(days: weekDays, height: 420)
-                default: grid(days: monthDays, height: 134)
+                case "Semana": weekTimeline
+                default: monthGrid
                 }
                 Text("Horários em \(Workspace.timeZoneLabel).").font(.system(size: 11)).foregroundStyle(Palette.muted).padding(.top, 14)
             }.padding(.top, -6)
@@ -37,6 +37,9 @@ struct CalendarPage: View {
     }
 
     private var title: String {
+        if mode == "Semana", let first = weekDays.first, let last = weekDays.last {
+            return "\(Workspace.format(first, date: .abbreviated, time: .omitted)) – \(Workspace.format(last, date: .abbreviated, time: .omitted))"
+        }
         var style = Date.FormatStyle().month(.wide).year(); style.timeZone = Workspace.timeZone; style.locale = AppLanguage.locale
         let text = anchor.formatted(style).replacingOccurrences(of: " de ", with: " ")
         return text.prefix(1).uppercased() + text.dropFirst()
@@ -44,9 +47,9 @@ struct CalendarPage: View {
     /// Monday first, in the app language ("Seg", "Mon"…).
     private var weekdayNames: [String] { var c = calendar; c.locale = AppLanguage.locale; let names = c.shortWeekdaySymbols; return Array(names[1...] + names[..<1]).map { $0.replacingOccurrences(of: ".", with: "") } }
     private func shift(_ delta: Int) { anchor = calendar.date(byAdding: mode == "Semana" ? .weekOfYear : .month, value: delta, to: anchor) ?? anchor }
-    private var weekDays: [Date?] {
+    private var weekDays: [Date] {
         let start = calendar.dateInterval(of: .weekOfYear, for: anchor)!.start
-        return (0..<7).map { calendar.date(byAdding: .day, value: $0, to: start) }
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
     }
     private var monthDays: [Date?] {
         guard let interval = calendar.dateInterval(of: .month, for: anchor), let count = calendar.range(of: .day, in: .month, for: anchor)?.count else { return [] }
@@ -56,38 +59,96 @@ struct CalendarPage: View {
     }
     private func posts(on day: Date) -> [Publication] { store.posts.filter { calendar.isDate($0.date, inSameDayAs: day) }.sorted { $0.date < $1.date } }
 
-    private func grid(days: [Date?], height: CGFloat) -> some View {
-        VStack(spacing: 0) {
+    private var monthGrid: some View {
+        let days = monthDays
+        let rows = stride(from: 0, to: days.count, by: 7).map { Array(days[$0..<min($0 + 7, days.count)]) }
+        return VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(Array(weekdayNames.enumerated()), id: \.offset) { ColumnHeader($0.element).padding(.leading, 14).frame(maxWidth: .infinity, alignment: .leading) }
             }.frame(height: 56)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 0) {
-                ForEach(Array(days.enumerated()), id: \.offset) { _, day in cell(day, height: height) }
+            VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    let eventCount = row.compactMap { $0 }.map { posts(on: $0).count }.max() ?? 0
+                    HStack(spacing: 0) { ForEach(Array(row.enumerated()), id: \.offset) { _, day in monthCell(day) } }
+                        .frame(height: max(104, 36 + CGFloat(eventCount) * 42))
+                }
             }.overlay(Rectangle().stroke(Palette.stroke))
         }
     }
 
-    private func cell(_ day: Date?, height: CGFloat) -> some View {
+    private func monthCell(_ day: Date?) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             if let day {
                 Text("\(calendar.component(.day, from: day))").font(.system(size: 11, weight: calendar.isDateInToday(day) ? .bold : .regular)).foregroundStyle(calendar.isDateInToday(day) ? Palette.text : Palette.muted)
-                ForEach(posts(on: day).prefix(height > 200 ? 8 : 2)) { post in
+                ForEach(posts(on: day)) { post in
                     Button { router.detail(post.id) } label: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("\(Workspace.time(post.date))  \(post.title)").font(.system(size: 11, weight: .medium)).lineLimit(1)
-                            Text(post.platforms.joined(separator: " · ")).font(.system(size: 10)).foregroundStyle(Palette.muted).lineLimit(1)
-                        }.padding(.horizontal, 9).padding(.vertical, 7).frame(maxWidth: .infinity, alignment: .leading).background(Palette.raised).clipShape(RoundedRectangle(cornerRadius: 8))
+                        HStack(spacing: 5) {
+                            Text(Workspace.time(post.date)).font(.system(size: 10, weight: .semibold).monospacedDigit())
+                            Text(post.title).font(.system(size: 10, weight: .medium)).lineLimit(1)
+                            Text(post.text.isEmpty ? post.platforms.joined(separator: " · ") : post.text).font(.system(size: 9)).foregroundStyle(Palette.muted).lineLimit(1)
+                        }.padding(.horizontal, 7).padding(.vertical, 5).frame(maxWidth: .infinity, alignment: .leading).background(Palette.raised).clipShape(RoundedRectangle(cornerRadius: 6))
                             .opacity(post.status == PostStatus.draft ? 0.55 : 1).contentShape(Rectangle())
                     }.buttonStyle(.plain)
                 }
-                if posts(on: day).count > (height > 200 ? 8 : 2) { Text("+\(posts(on: day).count - 2)").font(.system(size: 10)).foregroundStyle(Palette.muted) }
             }
             Spacer(minLength: 0)
         }
-        .padding(10).frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .topLeading)
+        .padding(7).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(day == nil ? Palette.bg : Palette.bg).overlay(Rectangle().stroke(Palette.stroke, lineWidth: 0.5))
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { if let day { newPost(on: day) } }
+    }
+
+    private var weekTimeline: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Color.clear.frame(width: 58)
+                ForEach(Array(weekDays.enumerated()), id: \.offset) { _, day in
+                    VStack(spacing: 3) {
+                        Text(weekdayNames[calendar.component(.weekday, from: day) == 1 ? 6 : calendar.component(.weekday, from: day) - 2].uppercased()).font(.system(size: 10, weight: .medium)).foregroundStyle(Palette.muted)
+                        Text("\(calendar.component(.day, from: day))").font(.system(size: 13, weight: calendar.isDateInToday(day) ? .bold : .medium)).foregroundStyle(calendar.isDateInToday(day) ? Palette.accent : Palette.text)
+                    }.frame(maxWidth: .infinity).frame(height: 48)
+                }
+            }
+            VStack(spacing: 0) {
+                ForEach(0..<48, id: \.self) { slot in
+                    let hour = slot / 2, minute = slot % 2 == 0 ? 0 : 30
+                    HStack(spacing: 0) {
+                        Text(String(format: "%02d:%02d", hour, minute)).font(.system(size: 10).monospacedDigit()).foregroundStyle(Palette.muted).frame(width: 58, alignment: .leading).padding(.leading, 4)
+                        ForEach(Array(weekDays.enumerated()), id: \.offset) { _, day in
+                            let time = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
+                            weekSlot(day: day, time: time).frame(maxWidth: .infinity).frame(height: 44)
+                        }
+                    }.overlay(alignment: .bottom) { Rectangle().fill(Palette.stroke.opacity(slot % 2 == 0 ? 0.8 : 0.35)).frame(height: 0.5) }
+                }
+            }
+        }
+    }
+
+    private func weekSlot(day: Date, time: Date) -> some View {
+        let items = posts(on: day).filter { calendar.component(.hour, from: $0.date) == calendar.component(.hour, from: time) && ((calendar.component(.minute, from: $0.date) < 30) == (calendar.component(.minute, from: time) == 0)) }
+        return Group {
+            if !items.isEmpty {
+                VStack(spacing: 2) {
+                    ForEach(items) { item in
+                        Button { router.detail(item.id) } label: {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(item.title).font(.system(size: 9, weight: .semibold)).lineLimit(1)
+                                Text(item.text.isEmpty ? item.platforms.joined(separator: " · ") : item.text).font(.system(size: 8)).foregroundStyle(Palette.muted).lineLimit(1)
+                            }.padding(3).frame(maxWidth: .infinity, alignment: .leading).background(Palette.raised).clipShape(RoundedRectangle(cornerRadius: 4))
+                        }.buttonStyle(.plain).draggable(item.id.uuidString)
+                    }
+                }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                Color.clear.contentShape(Rectangle())
+                    .onTapGesture(count: 2) { router.compose(ComposerSeed(date: time)) }
+            }
+        }.padding(1).overlay(Rectangle().stroke(Palette.stroke.opacity(0.45), lineWidth: 0.5))
+            .dropDestination(for: String.self) { values, _ in
+                guard let id = values.first.flatMap(UUID.init(uuidString:)) else { return false }
+                store.edit(id) { $0.date = time }
+                return true
+            }
     }
 
     private var list: some View {
