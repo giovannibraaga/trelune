@@ -202,7 +202,7 @@ struct AppShell: View {
         .overlay { ConnectionDialogs(dialog: $router.dialog) }
         .background(Palette.bg).foregroundStyle(Palette.text).tint(Palette.accent)
         .background { Button("") { router.page = "Publicações"; router.focusSearch = true }.keyboardShortcut("k").opacity(0).allowsHitTesting(false) }
-        .onAppear { Appearance.apply() }
+        .onAppear { Appearance.apply(); InstallMetrics.start() }
         .onChange(of: appearance) { _, _ in Appearance.apply() }
         .alert(AppIdentity.name, isPresented: Binding(get: { !store.lastError.isEmpty }, set: { if !$0 { store.lastError = "" } })) { Button("OK") { store.lastError = "" } } message: { Text(store.lastError) }
     }

@@ -18,6 +18,7 @@ struct SettingsPage: View {
     @AppStorage(CloudNames.prefixKey) var cloudPrefix = ""
     @AppStorage("libraryFolders") var foldersSerialized = ""
     @AppStorage("settingsTab") var tab = "Geral"
+    @AppStorage(InstallMetrics.choiceKey) var installMetricsEnabled = false
 
     // Drafts, committed by "Salvar alterações".
     @State private var draftName = ""
@@ -131,6 +132,8 @@ struct SettingsPage: View {
             VStack(alignment: .leading, spacing: 32) {
                 ValueBox(label: "Dados do workspace", action: { NSWorkspace.shared.open(AppPaths.support) }) { Text("Armazenados neste dispositivo") }
                 ValueBox(label: "Acesso de assistentes", action: { router.page = "MCP e assistentes" }) { Text("Gerenciar permissões"); Text("›") }
+                ValueBox(label: "Medição de primeira abertura", action: { installMetricsEnabled.toggle(); if installMetricsEnabled { InstallMetrics.sendIfNeeded() } }) { DotStatus(on: installMetricsEnabled, onLabel: "Ativada", offLabel: "Desativada") }
+                Text(L("Envia apenas um evento e a versão do app para a Cloudflare, sem identificador do dispositivo.")) .font(.system(size: 12)).foregroundStyle(Palette.muted)
                 ValueBox(label: "Credenciais das redes") { Text("No Chaves do macOS, separadas por serviço") }
                 HStack(spacing: 10) {
                     SecondaryButton("Limpar histórico de assistentes") { AssistantLogEntry.clear(); notice = "Histórico de assistentes apagado." }

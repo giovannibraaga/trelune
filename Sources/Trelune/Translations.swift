@@ -1,6 +1,11 @@
 // Generated from the UI strings (Portuguese → English). Regenerate when adding UI text.
 enum Translations {
     static let english: [String: String] = [
+        "Ajudar a melhorar o Trelune?": "Help improve Trelune?",
+        "Com sua permissão, enviaremos à Cloudflare um evento de primeira abertura e a versão do app. Nenhuma publicação, credencial, nome ou identificador do dispositivo é enviado. Você pode mudar sua escolha em Ajustes → Privacidade.": "With your permission, we will send Cloudflare a first-open event and the app version. No posts, credentials, name, or device identifier are sent. You can change your choice in Settings → Privacy.",
+        "Permitir": "Allow",
+        "Medição de primeira abertura": "First-open measurement",
+        "Envia apenas um evento e a versão do app para a Cloudflare, sem identificador do dispositivo.": "Sends only one event and the app version to Cloudflare, without a device identifier.",
         "Monitorar": "Monitor",
         "Aguardando": "Waiting",
         "Aguardando…": "Waiting…",
