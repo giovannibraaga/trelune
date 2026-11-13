@@ -3,7 +3,7 @@
 //   node server.mjs --daemon  keeps the container alive and syncs cloud schedules every minute
 // Shares the app's data folder (mounted at DATA_DIR): publications.json, assistant.json, workspace.json…
 // Outbound traffic goes through the egress proxy, which only allows the providers' API hosts.
-import { readFileSync, writeFileSync, renameSync, mkdirSync, rmdirSync, statSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, renameSync, mkdirSync, rmdirSync, statSync, existsSync, unlinkSync } from "node:fs";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { createInterface } from "node:readline";
 import { extname, basename } from "node:path";
@@ -51,13 +51,14 @@ async function withLock(body) {
       await new Promise((r) => setTimeout(r, 50));
     }
   }
+  if (!owned) throw new Issue("Não foi possível obter acesso exclusivo às publicações. Tente novamente.");
   try { return await body(); } finally { if (owned) try { rmdirSync(FILES.lock); } catch {} }
 }
 const loadPosts = () => readJSON(FILES.posts, []);
 async function mutate(change) {
   return withLock(async () => { const posts = loadPosts(); const result = await change(posts); writeJSON(FILES.posts, posts); return result; });
 }
-const settings = () => ({ enabled: false, allowWrite: true, allowSchedule: false, allowDelete: false, ...readJSON(FILES.assistant, {}) });
+const settings = () => ({ enabled: false, allowWrite: true, allowSchedule: false, allowPublish: false, allowManage: false, allowDelete: false, ...readJSON(FILES.assistant, {}) });
 function log(tool, ok, summary) {
   const items = readJSON(FILES.log, []);
   items.unshift({ id: randomUUID().toUpperCase(), date: toSwift(new Date()), tool, ok, summary: `[Docker] ${summary}` });
@@ -79,9 +80,12 @@ function encode(post) {
   const value = { id: post.id, title: post.title, text: post.text, platforms: post.platforms, status: post.status, date: iso(fromSwift(post.date)), date_local: formatLocal(fromSwift(post.date)), youtube_privacy: post.youtubePrivacy ?? "private", stories: post.stories !== false };
   if (post.media?.length) { value.media_paths = post.media; value.formats = Object.fromEntries(post.platforms.map((n) => [n, format(post, n)])); }
   if (Object.keys(post.titles ?? {}).length) value.titles = post.titles;
+  if (post.coverPath) value.cover_path = post.coverPath;
+  if (post.coverTime != null) value.cover_time_seconds = post.coverTime;
   if (post.publicMediaURL) value.public_media_url = post.publicMediaURL;
   if (Object.keys(post.overrides ?? {}).length) value.overrides = post.overrides;
   if (Object.keys(post.results ?? {}).length) value.results = Object.fromEntries(Object.entries(post.results).map(([k, r]) => [k, { state: r.state, detail: r.detail, link: r.link ?? "" }]));
+  Object.assign(value, { tags: post.tags ?? [], facebook_page_id: post.facebookPageID ?? null, tiktok_privacy: post.tiktokPrivacy ?? "INBOX", tiktok_allow_comments: post.tiktokAllowComments === true, tiktok_allow_duet: post.tiktokAllowDuet === true, tiktok_allow_stitch: post.tiktokAllowStitch === true, tiktok_disclose: post.tiktokDisclose === true, tiktok_your_brand: post.tiktokYourBrand === true, tiktok_branded: post.tiktokBranded === true });
   if (post.cloud) value.cloud = "agendado na nuvem (publica com o Mac desligado)";
   return value;
 }
@@ -103,6 +107,15 @@ function mediaPath(path) {
 function apply(args, post) {
   if (typeof args.media_path === "string") post.media = args.media_path ? [mediaPath(args.media_path), ...post.media.slice(1)] : [];
   if (Array.isArray(args.media_paths)) post.media = args.media_paths.map(mediaPath);
+  if (typeof args.cover_path === "string") {
+    if (!args.cover_path) delete post.coverPath;
+    else { const path = mediaPath(args.cover_path); if (![".jpg", ".jpeg", ".png"].includes(extname(path).toLowerCase()) || !statSync(path).isFile()) throw new Issue("A capa deve ser um arquivo JPEG ou PNG."); post.coverPath = path; }
+  }
+  if (args.cover_time_seconds !== undefined) {
+    if (args.cover_time_seconds === null) delete post.coverTime;
+    else if (typeof args.cover_time_seconds !== "number" || !Number.isFinite(args.cover_time_seconds) || args.cover_time_seconds < 0) throw new Issue("cover_time_seconds deve ser um número não negativo.");
+    else post.coverTime = args.cover_time_seconds;
+  }
   for (const field of ["titles", "overrides"]) {
     if (args[field] && typeof args[field] === "object") {
       for (const key of Object.keys(args[field])) if (!NETWORKS.includes(key)) throw new Issue(`Rede desconhecida em ${field}: ${key}`);
@@ -112,6 +125,12 @@ function apply(args, post) {
   if (typeof args.public_media_url === "string") { if (args.public_media_url && !args.public_media_url.startsWith("https://")) throw new Issue("public_media_url precisa ser HTTPS."); post.publicMediaURL = args.public_media_url || undefined; }
   if (args.youtube_privacy) { if (!["private", "unlisted", "public"].includes(args.youtube_privacy)) throw new Issue("youtube_privacy inválido."); post.youtubePrivacy = args.youtube_privacy; }
   if (typeof args.stories === "boolean") post.stories = args.stories;
+  if (args.tags !== undefined) { if (!Array.isArray(args.tags) || !args.tags.every(x => typeof x === "string")) throw new Issue("tags deve ser uma lista de textos."); post.tags = args.tags; }
+  if (typeof args.facebook_page_id === "string") post.facebookPageID = args.facebook_page_id || undefined;
+  if (args.tiktok_privacy !== undefined) { if (!["INBOX", "PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"].includes(args.tiktok_privacy)) throw new Issue("tiktok_privacy inválido."); post.tiktokPrivacy = args.tiktok_privacy; }
+  for (const [arg, field] of Object.entries({ tiktok_allow_comments: "tiktokAllowComments", tiktok_allow_duet: "tiktokAllowDuet", tiktok_allow_stitch: "tiktokAllowStitch", tiktok_disclose: "tiktokDisclose", tiktok_your_brand: "tiktokYourBrand", tiktok_branded: "tiktokBranded" })) {
+    if (args[arg] !== undefined) { if (typeof args[arg] !== "boolean") throw new Issue(`${arg} deve ser booleano.`); post[field] = args[arg]; }
+  }
 }
 function parseDate(raw) {
   if (typeof raw !== "string") return null;
@@ -171,7 +190,7 @@ async function push(post) {
     return key;
   }
   for (const [index, path] of post.media.entries()) keys.push(await send(mediaPath(path), String(index)));
-  const cover = post.coverPath && existsSync(post.coverPath) ? await send(post.coverPath, "cover") : null;
+  const cover = post.coverPath ? await send(mediaPath(post.coverPath), "cover") : null;
   const pending = post.platforms.filter((n) => !["ok", "inbox"].includes(post.results?.[n]?.state));
   const revision = randomUUID().toUpperCase();
   const payload = {
@@ -252,21 +271,62 @@ async function syncCloud() {
   }
 }
 
+// Requests are handled by the running Mac app, which retains its Keychain and network connections.
+async function appRequest(action, args) {
+  const dir = `${DATA}/assistant-requests`;
+  mkdirSync(dir, { recursive: true });
+  const id = randomUUID(), request = `${dir}/${id}.request`, response = `${dir}/${id}.response`;
+  writeJSON(request, { action, arguments: args, expires: Date.now() / 1000 + 8 });
+  try {
+    for (let i = 0; i < 100; i++) {
+      if (existsSync(response)) {
+        const result = readJSON(response, null);
+        if (!result) throw new Issue("Resposta inválida do Trelune.");
+        if (!result.ok) throw new Issue(result.error ?? "Falha no aplicativo.");
+        return result.value;
+      }
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    throw new Issue("O Trelune não respondeu. Abra o aplicativo e tente novamente. Se pediu uma publicação, verifique seu status antes de repetir: o resultado pode ser desconhecido.");
+  } finally { for (const file of [request, response]) try { unlinkSync(file); } catch {} }
+}
+
 // ---------- MCP tools ----------
 function tools() {
   const s = settings();
   const platforms = { type: "array", items: { type: "string", enum: NETWORKS }, description: "Destinos da publicação." };
-  const edit = { title: { type: "string" }, text: { type: "string" }, platforms, media_path: { type: "string", description: "Caminho de um arquivo local (ex.: da list_media)." }, media_paths: { type: "array", items: { type: "string" }, description: "Vários arquivos em ordem (carrossel); o primeiro é a capa." }, titles: { type: "object", additionalProperties: { type: "string" }, description: "Título por rede, ex.: {\"YouTube\": \"...\"}." }, overrides: { type: "object", additionalProperties: { type: "string" }, description: "Texto específico por rede." }, public_media_url: { type: "string" }, youtube_privacy: { type: "string", enum: ["private", "unlisted", "public"] }, stories: { type: "boolean", description: "Também publicar a primeira mídia nos Stories do Instagram e do Facebook (padrão: sim)." } };
+  const edit = { cover_path: { type: "string", description: "Caminho da imagem JPEG ou PNG para capa de vídeo; string vazia remove. YouTube e Instagram aceitam imagem; TikTok usa quadro do vídeo." }, cover_time_seconds: { type: ["number", "null"], minimum: 0, description: "Momento do quadro em segundos para Instagram e publicação direta no TikTok; null remove. Para YouTube use cover_path." }, title: { type: "string" }, text: { type: "string" }, platforms, media_path: { type: "string", description: "Caminho de um arquivo local (ex.: da list_media)." }, media_paths: { type: "array", items: { type: "string" }, description: "Vários arquivos de mídia em ordem (carrossel); não define capa de vídeo." }, titles: { type: "object", additionalProperties: { type: "string" }, description: "Título por rede, ex.: {\"YouTube\": \"...\"}." }, overrides: { type: "object", additionalProperties: { type: "string" }, description: "Texto específico por rede." }, public_media_url: { type: "string" }, youtube_privacy: { type: "string", enum: ["private", "unlisted", "public"] }, stories: { type: "boolean", description: "Também publicar a primeira mídia nos Stories do Instagram e do Facebook (padrão: sim)." } };
+  Object.assign(edit, { tags: { type: "array", items: { type: "string" }, description: "Tags do YouTube." }, facebook_page_id: { type: "string", description: "ID da Página Meta; vazio usa a padrão." }, tiktok_privacy: { type: "string", enum: ["INBOX", "PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"] }, ...Object.fromEntries(["tiktok_allow_comments", "tiktok_allow_duet", "tiktok_allow_stitch", "tiktok_disclose", "tiktok_your_brand", "tiktok_branded"].map(k => [k, { type: "boolean" }])) });
   const tool = (name, description, properties, required = []) => ({ name, description, inputSchema: { type: "object", properties, required, additionalProperties: false } });
   const list = [
     tool("list_publications", "Lista publicações do workspace, mais recentes primeiro.", { status: { type: "string", enum: Object.values(STATUS) }, platform: { type: "string", enum: NETWORKS }, limit: { type: "integer", minimum: 1, maximum: 200 } }),
     tool("get_publication", "Retorna uma publicação pelo id, com resultados de envio por rede.", { id: { type: "string" } }, ["id"]),
     tool("get_overview", "Resumo do workspace: contagem por status e próximos agendamentos.", {}),
     tool("list_media", "Lista os arquivos da biblioteca de mídia (caminhos locais).", {}),
+    tool("get_workspace", "Consulta ajustes do workspace no app aberto.", {}),
+    tool("export_backup", "Retorna backup JSON das publicações pelo app aberto.", {}),
+    tool("export_csv", "Retorna relatório CSV das publicações pelo app aberto.", { platform: { type: "string", enum: NETWORKS }, days: { type: "integer", minimum: 1, maximum: 365 } }),
+    tool("list_connections", "Lista contas e estado das conexões carregadas pelo app aberto.", {}),
+    tool("refresh_insights", "Inicia atualização dos dados das redes no app aberto.", {}),
+    tool("get_insights", "Consulta métricas e conteúdo carregados pelo app aberto.", { platform: { type: "string", enum: NETWORKS }, days: { type: "integer", minimum: 1, maximum: 365 } }),
+    tool("validate_publication", "Valida destinos e requisitos com as contas do app aberto.", { id: { type: "string" } }, ["id"]),
   ];
   if (s.allowWrite) {
     list.push(tool("create_draft", "Cria um rascunho. Não publica nada.", edit, ["title", "text", "platforms"]));
+  }
+  if (s.allowManage) {
+    list.push(tool("import_backup", "Importa publicações de um backup, preservando IDs existentes; requer app aberto.", { publications: { type: "array", items: { type: "object" } } }, ["publications"]));
+    list.push(tool("update_workspace", "Atualiza nome, usuário, fuso e publicação atrasada no app aberto.", { name: { type: "string" }, user_name: { type: "string" }, timezone: { type: "string" }, publish_overdue: { type: "boolean" } }));
+    list.push(tool("manage_library", "Importa ou remove uma mídia da biblioteca ou gerencia pastas monitoradas; não apaga arquivos. Requer o app aberto.", { operation: { type: "string", enum: ["import", "remove", "add_folder", "remove_folder"] }, path: { type: "string" } }, ["operation", "path"]));
+    list.push(tool("disconnect_account", "Desconecta uma conta; Facebook e Instagram compartilham a conexão Meta e exigem confirmação conjunta.", { platform: { type: "string", enum: NETWORKS }, confirm_shared_meta: { type: "boolean" } }, ["platform"]));
+    list.push(tool("open_connection", "Abre a configuração de uma rede no app; a autorização é concluída pelo usuário.", { platform: { type: "string", enum: NETWORKS } }, ["platform"]));
+  }
+  if (s.allowWrite) {
+    list.push(tool("duplicate_publication", "Duplica uma publicação como rascunho, sem resultados ou agendamento na nuvem.", { id: { type: "string" } }, ["id"]));
     list.push(tool("update_publication", "Altera um rascunho ou agendamento existente.", { id: { type: "string" }, ...edit }, ["id"]));
+  }
+  if (s.allowPublish) {
+    list.push(tool("publish_now", "Inicia a publicação ou repete destinos que falharam no app aberto; acompanhe com get_publication.", { id: { type: "string" } }, ["id"]));
   }
   if (s.allowSchedule) {
     list.push(tool("schedule_publication", "Agenda uma publicação. Com a publicação pela nuvem ligada, sai no horário mesmo com o Mac desligado.", { id: { type: "string" }, date: { type: "string", description: "ISO 8601, ex.: 2026-11-10T09:30:00-03:00. Sem fuso usa o fuso do workspace." } }, ["id", "date"]));
@@ -280,6 +340,14 @@ async function call(name, args) {
   const s = settings();
   if (!s.enabled) throw new Issue("O acesso de assistentes está desativado. Ative em Trelune → MCP e assistentes.");
   switch (name) {
+    case "get_workspace": case "export_backup": case "export_csv": case "list_connections": case "refresh_insights": case "get_insights": case "validate_publication":
+      return [await appRequest(name, args), `Consultou ${name} no aplicativo`];
+    case "publish_now":
+      if (!s.allowPublish) throw denied();
+      return [await appRequest(name, args), "Iniciou publicação no aplicativo"];
+    case "import_backup": case "update_workspace": case "manage_library": case "open_connection": case "disconnect_account":
+      if (!s.allowManage) throw denied();
+      return [await appRequest(name, args), `Executou ${name} no aplicativo`];
     case "list_publications": {
       const items = loadPosts().filter((p) => (!args.status || p.status === args.status) && (!args.platform || p.platforms.includes(args.platform))).sort((a, b) => b.date - a.date).slice(0, args.limit ?? 50);
       return [items.map(encode), `${items.length} publicação(ões) listada(s)`];
@@ -304,6 +372,11 @@ async function call(name, args) {
       apply(args, post);
       await mutate((posts) => { posts.unshift(post); });
       return [encode(post), `Criou o rascunho “${title}”`];
+    }
+    case "duplicate_publication": {
+      if (!s.allowWrite) throw denied();
+      const copy = await mutate(posts => { const source = find(posts, args), now = toSwift(new Date()); const item = structuredClone(source); item.id = randomUUID().toUpperCase(); item.title += " (cópia)"; item.status = STATUS.draft; item.results = {}; item.created = now; item.updated = now; if (item.date < now) item.date = now + 3600; delete item.cloud; posts.unshift(item); return item; });
+      return [encode(copy), `Duplicou “${copy.title}”`];
     }
     case "update_publication": {
       if (!s.allowWrite) throw denied();

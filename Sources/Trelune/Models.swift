@@ -358,6 +358,14 @@ struct CloudState: Codable, Hashable {
         if copy.date < Date() { copy.date = Date().addingTimeInterval(3600) }
         return add(copy)
     }
+    func mergeBackup(_ items: [Publication]) -> Int {
+        var count = 0
+        mutate { posts in
+            var ids = Set(posts.map(\.id))
+            for item in items where ids.insert(item.id).inserted { posts.append(item); count += 1 }
+        }
+        return count
+    }
     func removeAll() { mutate { $0.removeAll() } }
     func replaceAll(with items: [Publication]) { mutate { $0 = items } }
 
@@ -441,7 +449,21 @@ struct AssistantSettings: Codable, Equatable {
     var enabled = false
     var allowWrite = true
     var allowSchedule = false
+    var allowPublish = false
+    var allowManage = false
     var allowDelete = false
+
+    init() {}
+    private enum CodingKeys: String, CodingKey { case enabled, allowWrite, allowSchedule, allowPublish, allowManage, allowDelete }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        allowWrite = try c.decodeIfPresent(Bool.self, forKey: .allowWrite) ?? true
+        allowSchedule = try c.decodeIfPresent(Bool.self, forKey: .allowSchedule) ?? false
+        allowPublish = try c.decodeIfPresent(Bool.self, forKey: .allowPublish) ?? false
+        allowManage = try c.decodeIfPresent(Bool.self, forKey: .allowManage) ?? false
+        allowDelete = try c.decodeIfPresent(Bool.self, forKey: .allowDelete) ?? false
+    }
 
     static func load() -> AssistantSettings {
         guard let data = try? Data(contentsOf: AppPaths.assistant), let value = try? JSONDecoder().decode(AssistantSettings.self, from: data) else { return AssistantSettings() }

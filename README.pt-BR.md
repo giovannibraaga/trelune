@@ -87,7 +87,7 @@ As capacidades dependem das permissões concedidas e das APIs de cada plataforma
 
 **Dados locais.** Publicações e configurações ficam em `~/Library/Application Support/Trelune/`; tokens e segredos OAuth ficam no Chaves do macOS. O projeto não oferece um servidor hospedado ou plano de assinatura.
 
-**Assistentes.** Em **MCP e assistentes**, ative o acesso e escolha as permissões desejadas. O app pode funcionar como servidor com `Trelune --mcp`; há também uma opção em contêiner na pasta [mcp](mcp/). Configure apenas os acessos que deseja conceder.
+**Assistentes.** Em **MCP e assistentes**, ative o acesso e escolha as permissões desejadas. O app pode funcionar como servidor com `Trelune --mcp`; há também uma opção em contêiner na pasta [mcp](mcp/). Configure apenas os acessos que deseja conceder. Publicação imediata e gerenciamento do workspace têm permissões independentes, desativadas por padrão. Validação, métricas e as ações que usam conexões exigem o app atualizado aberto. Veja a [cobertura e os requisitos do MCP](mcp/COBERTURA.md).
 
 ## Atualizar e desinstalar
 

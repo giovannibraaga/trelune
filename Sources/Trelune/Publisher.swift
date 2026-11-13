@@ -218,11 +218,12 @@ import UserNotifications
     /// Publishes every destination that has not succeeded yet. Safe to call again to retry failures.
     func publish(_ id: UUID) async {
         guard !running.contains(id), let initial = store.post(id) else { return }
+        running.insert(id); defer { running.remove(id) }
         if cloud.manages(id) {
             guard initial.date > Date() else { lastMessage = "“\(initial.title)” já está sendo publicado pela nuvem."; return }
             await cloud.release(id)
+            guard !cloud.manages(id) else { lastMessage = "Não foi possível cancelar o agendamento na nuvem; o envio local não foi iniciado."; return }
         }
-        running.insert(id); defer { running.remove(id) }
         let previousStatus = initial.status
         store.status(id, PostStatus.publishing)
         for network in initial.platforms {

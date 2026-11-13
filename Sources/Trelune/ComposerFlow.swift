@@ -872,19 +872,20 @@ struct CoverStep: View {
                     else { Image(systemName: "play.fill").font(.system(size: 24)).foregroundStyle(Palette.muted) }
                 }.frame(width: 234, height: 350).clipShape(RoundedRectangle(cornerRadius: 12))
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Quadro do vídeo").font(.system(size: 13, weight: .semibold)).padding(.top, 14)
+                    Text("Quadro do vídeo (TikTok)").font(.system(size: 13, weight: .semibold)).padding(.top, 14)
+                    if coverPath != nil, let frame { Image(nsImage: frame).resizable().aspectRatio(contentMode: .fit).frame(width: 90, height: 120).padding(.top, 8) }
                     Text(coverPath == nil ? "Escolha o momento que representa seu conteúdo." : URL(fileURLWithPath: coverPath!).lastPathComponent).font(.system(size: 12)).foregroundStyle(Palette.muted).padding(.top, 14)
-                    Slider(value: $scrub, in: 0...max(duration, 0.1)) { editing in if !editing { coverTime = scrub; coverPath = nil } }.tint(Palette.text).frame(width: 600).padding(.top, 28).disabled(coverPath != nil)
+                    Slider(value: $scrub, in: 0...max(duration, 0.1)) { editing in if !editing { coverTime = scrub } }.tint(Palette.text).frame(width: 600).padding(.top, 28)
                     Text("\(stamp(scrub))  /  \(stamp(duration))").font(.system(size: 11).monospacedDigit()).foregroundStyle(Palette.muted).padding(.top, 14)
                     SecondaryButton(coverPath == nil ? "Usar imagem personalizada" : "Trocar imagem") {
                         let panel = NSOpenPanel(); panel.allowedContentTypes = [.jpeg, .png]
                         if panel.runModal() == .OK { coverPath = panel.url?.path }
                     }.padding(.top, 34)
-                    Text("PNG ou JPEG · YouTube, Reels e TikTok").font(.system(size: 11)).foregroundStyle(Palette.muted).padding(.top, 16)
+                    Text("Imagem: YouTube e Instagram Reels. No TikTok, escolha um quadro do vídeo; em rascunhos, ajuste a capa no TikTok.").font(.system(size: 11)).foregroundStyle(Palette.muted).padding(.top, 16)
                     HStack {
                         SecondaryButton("Usar padrão") { coverPath = nil; coverTime = nil; done() }
                         Spacer()
-                        HeaderButton("Salvar capa", width: 266) { if coverPath == nil { coverTime = scrub }; done() }
+                        HeaderButton("Salvar capa", width: 266) { coverTime = scrub; done() }
                     }.padding(.top, 46)
                 }
             }.padding(.top, 26)

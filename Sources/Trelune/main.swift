@@ -21,6 +21,7 @@ TreluneApp.main()
     let host = MediaHost()
     let router = Router()
     let center: PublishingCenter
+    private var assistantBridge: AssistantBridge?
     init() {
         center = PublishingCenter(store: store, youtube: youtube, meta: meta, tiktok: tiktok, threads: threads, x: x, host: host)
         // A publication interrupted while sending (app quit or crash) is settled from the results already recorded.
@@ -33,6 +34,8 @@ TreluneApp.main()
             }
         }
         center.start()
+        assistantBridge = AssistantBridge(center: center, router: router)
+        assistantBridge?.start()
         #if DEBUG
         if let directory = ProcessInfo.processInfo.environment["TRELUNE_CLOUD_CHECK"] { checkCloud(to: directory) }
         else if let file = ProcessInfo.processInfo.environment["TRELUNE_HOST_CHECK"], let directory = ProcessInfo.processInfo.environment["TRELUNE_SNAPSHOT_DIR"] { checkHosting(file, to: directory) }

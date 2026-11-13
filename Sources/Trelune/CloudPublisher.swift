@@ -125,7 +125,10 @@ import CryptoKit
         }
         for (index, path) in post.media.enumerated() { keys.append(try await send(path, name: String(index))) }
         var cover: String?, coverIsFrame = false
-        if let path = post.coverPath, FileManager.default.fileExists(atPath: path) { cover = try await send(path, name: "cover") }
+        if let path = post.coverPath {
+            guard FileManager.default.fileExists(atPath: path) else { throw AppIssue("Arquivo da capa não encontrado. Escolha a capa novamente antes de agendar.") }
+            cover = try await send(path, name: "cover")
+        }
         else if let time = post.coverTime, let video = post.videos.first {
             cover = try await send(try await CoverFrame.export(video: video, at: time), name: "frame"); coverIsFrame = true
         }
